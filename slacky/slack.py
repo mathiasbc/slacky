@@ -1,3 +1,5 @@
+import os
+import sys
 import time
 from slackclient import SlackClient
 
@@ -7,8 +9,8 @@ from slackclient import SlackClient
 # if sc.rtm_connect():
 #     print(sc.api_call(
 #         "chat.postMessage",
-#         channel='D02VA032R', # channel ID only for IM
-#         text='!karma',
+#         channel='channel_id', # channel ID only for IM
+#         text='Hi',
 #         as_user=True
 #     ))
 #     while True:
@@ -18,12 +20,15 @@ from slackclient import SlackClient
 #     print("Connection Failed, invalid token?")
 
 
-
 class Slack(object):
 
     def __init__(self):
         # TODO: move token to file not versioned
-        token = "xoxp-2151890299-2997363102-36830412037-01d0d5d3a7"
+        token = os.environ.get('SLACK_TOKEN')
+        if not token:
+            print('Need to define ENV variable "SLACK_TOKEN"')
+            sys.exit(-1)
+
         self.sc = SlackClient(token)
         # print(self.sc.api_call("api.test"))
 

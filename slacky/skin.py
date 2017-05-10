@@ -2,18 +2,12 @@
 import curses
 import curses.textpad
 import os
-import logging
 import locale
 
 from slack import Slack
 
 
 locale.setlocale(locale.LC_ALL, "")
-
-
-LOGGER = logging.getLogger(__name__)
-LOG_FORMAT = '%(asctime)s %(levelname)s: %(message)s'
-logging.basicConfig(level=logging.INFO, format=LOG_FORMAT)
 
 
 def rel(path):
@@ -65,20 +59,22 @@ class Skin(object):
         self.stdscr.keypad(1)
         # draw the main frame
         self.setup_draw()
+        # find what's the erase character
+        self.del_char = curses.erasechar()
         self.run()
 
     def setup_draw(self):
         # get screen dimensions
         self.maxY, self.maxX = self.stdscr.getmaxyx()
         # n_lines, n_cols, begin_y, begin_x
-        self.headWin = curses.newwin(1, self.maxX, 0, 0)
+        self.head_win = curses.newwin(1, self.maxX, 0, 0)
         # left panel, contacts
-        self.bodyWin = curses.newwin(
+        self.body_win = curses.newwin(
             self.maxY - 1,
             int(self.maxX * self.body_proportion),
             1,
             0)
-        # right chat window
+        # left chat window
         self.chat_win = curses.newwin(
             self.maxY - 1 - int(self.maxY * self.text_area_proportion),
             self.maxX - int(self.maxX * self.body_proportion),
@@ -90,26 +86,34 @@ class Skin(object):
             self.maxX - int(self.maxX * self.body_proportion),
             self.maxY - int(self.maxY * self.text_area_proportion),
             int(self.maxX * self.body_proportion))
+
+        self.textarea = curses.newwin(
+            int(self.maxY * self.text_area_proportion) - 2,
+            self.maxX - int(self.maxX * self.body_proportion) - 2,
+            self.maxY - int(self.maxY * self.text_area_proportion) + 1,
+            int(self.maxX * self.body_proportion) + 1)
+
         self.init_head()
         self.init_body()
         self.init_chat()
         self.init_textbox()
-        self.bodyWin.keypad(1)
+        self.init_textarea()
+        self.body_win.keypad(1)
         curses.doupdate()
 
     def init_head(self):
-        name = "Slacky"
+        name = "Slacky (github.com/mathiasbc)"
         middle_pos = int(self.maxX/2 - len(name)/2)
-        self.headWin.addstr(0, middle_pos, name, curses.color_pair(2))
-        self.headWin.bkgd(' ', curses.color_pair(7))
-        self.headWin.noutrefresh()
+        self.head_win.addstr(0, middle_pos, name, curses.color_pair(2))
+        self.head_win.bkgd(' ', curses.color_pair(7))
+        self.head_win.noutrefresh()
 
     def init_body(self):
         """
         Initializes the body/story window
         """
-        self.bodyMaxY, self.bodyMaxX = self.bodyWin.getmaxyx()
-        self.bodyWin.noutrefresh()
+        self.bodyMaxY, self.bodyMaxX = self.body_win.getmaxyx()
+        self.body_win.noutrefresh()
         self.refresh_body()
 
     def init_chat(self):
@@ -117,18 +121,24 @@ class Skin(object):
         Draw the initial chat window
         """
         self.chat_max_y, self.chat_max_x = self.chat_win.getmaxyx()
-        self.bodyWin.noutrefresh()
+        self.body_win.noutrefresh()
+        self.chat_win.box()
         self.refresh_chat()
 
     def init_textbox(self):
         """
         Draws the textbox under the chat window
         """
-        self.text_max_y, self.text_max_x = self.text_win.getmaxyx()
-        self.textbox = curses.textpad.Textbox(self.text_win)
-
         self.text_win.refresh()
+        self.text_win.box()
         self.refresh_textbox()
+
+    def init_textarea(self):
+        # the current displayed text
+        self.char_pos = [0, 0]
+        self.text = ""
+        self.textarea.refresh()
+        self.refresh_textarea()
 
     def set_body_selection(self, number):
         """
@@ -142,45 +152,54 @@ class Skin(object):
             self.startPos = self.selection
 
     def refresh_body(self):
-        self.bodyWin.erase()
-        self.bodyWin.box()
+        self.body_win.erase()
+        self.body_win.box()
         maxDisplay = self.bodyMaxY - 1
         for lineNum in range(maxDisplay - 1):
             i = lineNum + self.startPos
             if i < len(self.contact_list):
                 self.__display_body_line(lineNum, self.contact_list[i])
-        self.bodyWin.refresh()
+        self.body_win.refresh()
 
     def __display_body_line(self, lineNum, station):
         col = curses.color_pair(5)
 
-        if lineNum + self.startPos == self.selection and self.selection == self.showing:
+        # if the cursor is on the highligted chat/group
+        is_current = self.selection == self.showing
+
+        if lineNum + self.startPos == self.selection and is_current:
             col = curses.color_pair(9)
-            self.bodyWin.hline(lineNum + 1, 1, ' ', self.bodyMaxX - 2, col)
+            self.body_win.hline(lineNum + 1, 1, ' ', self.bodyMaxX - 2, col)
         elif lineNum + self.startPos == self.selection:
             col = curses.color_pair(6)
-            self.bodyWin.hline(lineNum + 1, 1, ' ', self.bodyMaxX - 2, col)
+            self.body_win.hline(lineNum + 1, 1, ' ', self.bodyMaxX - 2, col)
         elif lineNum + self.startPos == self.showing:
             col = curses.color_pair(4)
-            self.bodyWin.hline(lineNum + 1, 1, ' ', self.bodyMaxX - 2, col)
+            self.body_win.hline(lineNum + 1, 1, ' ', self.bodyMaxX - 2, col)
         line = "{0}. {1}".format(lineNum + self.startPos + 1, station)
-        self.bodyWin.addstr(lineNum + 1, 1, line, col)
+        self.body_win.addstr(lineNum + 1, 1, line, col)
 
     def refresh_chat(self):
-        self.chat_win.box()
         self.chat_win.refresh()
 
-    def refresh_textbox(self):
-        self.text_win.box()
-        start_text = self.text_win.getparyx()
-        # self.text_win.addstr(1, 1, "Typed text goes here")
+    def refresh_textbox(self, char=None):
         self.text_win.refresh()
+
+    def refresh_textarea(self, char=None):
+        # draws a border on the window
+        self.textarea.addstr(0, 0, self.text)
+        self.textarea.refresh()
+
+    def backspace(self):
+        self.text = self.text[:-1]
+        self.textarea.clear()
+        self.refresh_textarea()
 
     def run(self):
         self.refresh_body()
         while True:
             try:
-                c = self.bodyWin.getch()
+                c = self.body_win.getch()
                 ret = self.keypress(c)
             except KeyboardInterrupt:
                 break
@@ -190,7 +209,9 @@ class Skin(object):
         if char == curses.KEY_RIGHT:
             self.showing = self.selection
             self.refresh_body()
-            self.setup_draw()
+            return
+
+        if char == curses.KEY_LEFT:
             return
 
         # moves to the user/group below current selection
@@ -207,9 +228,25 @@ class Skin(object):
             self.refresh_body()
             return
 
+        # send the content on the textbox
+        elif char == curses.KEY_ENTER or chr(char) == "\n":
+            # make sure to clean the text
+            self.char_pos = [1, 1]
+            self.text = ""
+            self.textarea.clear()
+            self.refresh_textarea()
+            return
+
+        # delete a character
+        elif chr(char) == self.del_char or chr(char) == "\x7f" or char == curses.KEY_BACKSPACE:
+            self.backspace()
+            return
+
         # send the char to textbox area
-        # else:
-            # self.
+        else:
+            self.text += chr(char)
+            self.refresh_textarea(char)
+            return
 
 
 # This method is callable for testing porpuses only
