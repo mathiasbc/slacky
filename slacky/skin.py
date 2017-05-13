@@ -29,21 +29,18 @@ def set_color_pairs():
 
 class Skin(object):
     startPos = 0
+    # proportion of the left panel body, to the chat panel
+    body_proportion = 0.20
+    # proportion of textarea vertically to the chat panel
+    text_area_proportion = 0.20
 
     def __init__(self):
         self.stdscr = None
         # instantiate a Slack client
         self.slack_client = Slack()
-        # print(self.slack_client.get_channels())
-        # print(self.slack_client.get_ims())
-
-        self.contact_list = self.slack_client.get_contacts_names()
+        self.slack_client.setup()
         self.showing = 0
         self.selection = 0
-        # proportion of the left panel body, to the chat panel
-        self.body_proportion = 0.20
-        # vertical proportion of text area against chat window
-        self.text_area_proportion = 0.20
 
     def setup(self, stdscr):
         self.stdscr = stdscr
@@ -74,19 +71,25 @@ class Skin(object):
             int(self.maxX * self.body_proportion),
             1,
             0)
-        # left chat window
+        # chat frame
         self.chat_win = curses.newwin(
             self.maxY - 1 - int(self.maxY * self.text_area_proportion),
             self.maxX - int(self.maxX * self.body_proportion),
             1,
             int(self.maxX * self.body_proportion))
-        # bottom textarea window
+        # chat window (displays text)
+        self.chatarea = curses.newwin(
+            self.maxY - 1 - int(self.maxY * self.text_area_proportion) - 2,
+            self.maxX - int(self.maxX * self.body_proportion) - 2,
+            2,
+            int(self.maxX * self.body_proportion) + 1)
+        # bottom frame window
         self.text_win = curses.newwin(
             int(self.maxY * self.text_area_proportion),
             self.maxX - int(self.maxX * self.body_proportion),
             self.maxY - int(self.maxY * self.text_area_proportion),
             int(self.maxX * self.body_proportion))
-
+        # bottom textarea
         self.textarea = curses.newwin(
             int(self.maxY * self.text_area_proportion) - 2,
             self.maxX - int(self.maxX * self.body_proportion) - 2,
@@ -96,6 +99,7 @@ class Skin(object):
         self.init_head()
         self.init_body()
         self.init_chat()
+        self.init_chatarea()
         self.init_textbox()
         self.init_textarea()
         self.body_win.keypad(1)
@@ -118,20 +122,27 @@ class Skin(object):
 
     def init_chat(self):
         """
-        Draw the initial chat window
+        Draws the chat frame
         """
         self.chat_max_y, self.chat_max_x = self.chat_win.getmaxyx()
         self.body_win.noutrefresh()
         self.chat_win.box()
-        self.refresh_chat()
+        self.chat_win.refresh()
+
+    def init_chatarea(self):
+        """
+        Draws the chat area to display chat text
+        """
+        self.chatarea.refresh()
+        # represents the y position where to start writing chat
+        self.chat_at = 0
 
     def init_textbox(self):
         """
         Draws the textbox under the chat window
         """
-        self.text_win.refresh()
         self.text_win.box()
-        self.refresh_textbox()
+        self.text_win.refresh()
 
     def init_textarea(self):
         # the current displayed text
@@ -152,13 +163,17 @@ class Skin(object):
             self.startPos = self.selection
 
     def refresh_body(self):
+        """
+        sets the new selection on the body and clears the chat
+        """
         self.body_win.erase()
         self.body_win.box()
         maxDisplay = self.bodyMaxY - 1
         for lineNum in range(maxDisplay - 1):
             i = lineNum + self.startPos
-            if i < len(self.contact_list):
-                self.__display_body_line(lineNum, self.contact_list[i])
+            if i < len(self.slack_client.active):
+                self.__display_body_line(
+                    lineNum, self.slack_client.active[i].name)
         self.body_win.refresh()
 
     def __display_body_line(self, lineNum, station):
@@ -179,21 +194,50 @@ class Skin(object):
         line = "{0}. {1}".format(lineNum + self.startPos + 1, station)
         self.body_win.addstr(lineNum + 1, 1, line, col)
 
-    def refresh_chat(self):
-        self.chat_win.refresh()
-
-    def refresh_textbox(self, char=None):
-        self.text_win.refresh()
-
     def refresh_textarea(self, char=None):
         # draws a border on the window
         self.textarea.addstr(0, 0, self.text)
         self.textarea.refresh()
 
+    def update_chat(self):
+        """
+        clears the chatbox and resets some things
+        """
+        self.chatarea.clear()
+        self.chat_at = 0
+        self.chatarea.refresh()
+
     def backspace(self):
         self.text = self.text[:-1]
         self.textarea.clear()
         self.refresh_textarea()
+
+    def send_text(self):
+        """
+        Sends the string in textarea and clear the window
+        """
+        _id = self.slack_client.active[self.showing].id
+        self.slack_client.message_channel(_id, self.text)
+        self.char_pos = [1, 1]
+        self.text = ""
+        self.textarea.clear()
+        self.refresh_textarea()
+
+    def push_chat(self, username, chat):
+        """
+        write the given string at the correct position
+        in the chatarea
+        """
+        # TODO: fails whe text goes beyond window limit
+        # highlight username
+        col = curses.color_pair(8)
+        self.chatarea.addstr(self.chat_at, 0, username + ':', col)
+        # write the actual chat content
+        self.chatarea.addstr(chat)
+        # update cursor
+        self.chat_at, _ = self.chatarea.getyx()
+        self.chat_at += 1
+        self.chatarea.refresh()
 
     def run(self):
         self.refresh_body()
@@ -209,14 +253,18 @@ class Skin(object):
         if char == curses.KEY_RIGHT:
             self.showing = self.selection
             self.refresh_body()
+            self.update_chat()
             return
 
         if char == curses.KEY_LEFT:
+            # TODO: Just feed text into the chat to test
+            text = "A NEW STRAIN of ransomware has spread quickly all over the world, causing crises in National Health Service hospitals and facilities around England, and gaining particular traction in Spain, where it has hobbled the large telecom company Telefonica, the natural gas company Gas Natural, and the electrical company Iberdrola. You know how people always talk about the Big One? As far as ransomware attacks go, this looks a whole lot like it."
+            self.push_chat('slackbot', text)
             return
 
         # moves to the user/group below current selection
         elif char == curses.KEY_DOWN:
-            if self.selection < len(self.contact_list) - 1:
+            if self.selection < len(self.slack_client.active) - 1:
                 self.set_body_selection(self.selection + 1)
             self.refresh_body()
             return
@@ -230,15 +278,11 @@ class Skin(object):
 
         # send the content on the textbox
         elif char == curses.KEY_ENTER or chr(char) == "\n":
-            # make sure to clean the text
-            self.char_pos = [1, 1]
-            self.text = ""
-            self.textarea.clear()
-            self.refresh_textarea()
+            self.send_text()
             return
 
         # delete a character
-        elif chr(char) == self.del_char or chr(char) == "\x7f" or char == curses.KEY_BACKSPACE:
+        elif chr(char) == self.del_char or chr(char) == "\x7f":
             self.backspace()
             return
 
@@ -251,5 +295,5 @@ class Skin(object):
 
 # This method is callable for testing porpuses only
 if __name__ == "__main__":
-    slack = Skin()
-    curses.wrapper(slack.setup)
+    slacky = Skin()
+    curses.wrapper(slacky.setup)
