@@ -6,7 +6,7 @@ how to write old style command line interfaces. Slack is a tool
 a lot of programmers use today so I thought a lot of you would 
 have interest in contributing to this effor.
 
-![Looking nice!](https://github.com/mathiasbc/slacky/img/slacky.jpg)
+![Looking nice!](https://github.com/mathiasbc/slacky/blob/master/img/slacky.jpg)
 
 Status
 ------
