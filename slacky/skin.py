@@ -205,6 +205,7 @@ class Skin(object):
         """
         self.chatarea.clear()
         self.chat_at = 0
+        # TODO: draw last 2 messages
         self.chatarea.refresh()
 
     def backspace(self):
@@ -228,7 +229,7 @@ class Skin(object):
         write the given string at the correct position
         in the chatarea
         """
-        # TODO: fails whe text goes beyond window limit
+        # FIXME: fails when text goes beyond window limit
         # highlight username
         col = curses.color_pair(8)
         self.chatarea.addstr(self.chat_at, 0, username + ':', col)
@@ -251,15 +252,13 @@ class Skin(object):
     def keypress(self, char):
         # right arrow select a user/group to chat with
         if char == curses.KEY_RIGHT:
-            self.showing = self.selection
             self.refresh_body()
-            self.update_chat()
-            return
-
-        if char == curses.KEY_LEFT:
-            # TODO: Just feed text into the chat to test
-            text = "A NEW STRAIN of ransomware has spread quickly all over the world, causing crises in National Health Service hospitals and facilities around England, and gaining particular traction in Spain, where it has hobbled the large telecom company Telefonica, the natural gas company Gas Natural, and the electrical company Iberdrola. You know how people always talk about the Big One? As far as ransomware attacks go, this looks a whole lot like it."
-            self.push_chat('slackbot', text)
+            self.update_chat() 
+            self.showing = self.selection
+            current_id = self.slack_client.active[self.showing].id
+            current_name = self.slack_client.active[self.showing].name
+            for m in self.slack_client.last_messages(current_id):
+                self.push_chat(m['user'], m['text'])
             return
 
         # moves to the user/group below current selection
@@ -278,6 +277,8 @@ class Skin(object):
 
         # send the content on the textbox
         elif char == curses.KEY_ENTER or chr(char) == "\n":
+            # Fixme: send message as 'me', should be username
+            self.push_chat('me', self.text)
             self.send_text()
             return
 

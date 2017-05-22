@@ -21,10 +21,12 @@ class Slack(object):
         self.contacts = []
         self.channels = []
         self.active = []
+        self.ims = {}
 
     def setup(self):
         self.set_contacts()
         self.set_channels()
+        self.set_ims()
         self.active = self.active_chats()
 
     def set_contacts(self):
@@ -43,64 +45,59 @@ class Slack(object):
 
     def active_chats(self):
         """
-        returns a list of the chats we want to show, should read
-        this from a file perhaps ?
+        returns a list of the chats we want to show
+        Only Ims for the moment
         """
-        # for dev, only show 10 contacts
-        show = self.contacts[-10:]
-        show.extend(self.channels[:10])
+        show = []
+        for c in self.contacts:
+            if c.id in list(self.ims.keys()):
+                show.append(c)
+                self.ims[c.id]['username'] = c.name
         return show
 
-    # TODO: we need to build a hash, keyed by ['user'] from im
-    def get_ims(self):
-        self.ims = self.sc.api_call("im.list")
-        return self.ims['ims']
+    def set_ims(self):
+        ims = self.sc.api_call("im.list")
+        for d in ims['ims']:
+            if not d['is_user_deleted']:
+                self.ims[d['user']] = {
+                    'id': d['id'],
+                    'username': ''
+                }
 
     def message_channel(self, id, message):
-        pass
         # disable for testing
-        # self.sc.api_call(
-        #     "chat.postMessage",
-        #     channel=id,
-        #     text=message,
-        #     as_user=True)
+        self.sc.api_call(
+            "chat.postMessage",
+            channel=id,
+            text=message,
+            as_user=True)
 
-    def channel_history(self, id, count=10):
-        """
-        By default only get the last 10 messages
-        """
+    def channel_history(self, id, count=3):
+        # By default only get the last 3 messages
         hist = self.sc.api_call(
             "channels.history",
             channel=id,
             count=count)
         return hist
 
-    def im_history(self, id):
+    def im_history(self, id, count=3):
+        # By default only get the last 3 messages
         hist = self.sc.api_call(
             "im.history",
-            channel=id)
+            channel=id,
+            count=count)
         return hist
 
-
-def main():
-    client = Slack()
-    client.setup()
-
-    # for c in client.active:
-        # print(c.name, c.id)
-
-    # print(client.get_ims())
-    his = client.im_history('D02VBAP3C')
-    print(his)
-
-
-    # connect to the real time API
-    # for feeding incoming messages
-    # if client.sc.rtm_connect():
-        # while True:
-            # print(client.sc.rtm_read())
-            # time.sleep(5)
-
-
-if __name__ == "__main__":
-    main()
+    def last_messages(self, id):
+        """
+        This method retrieves the history of the channel
+        or IM and maps user id's to usernames
+        """
+        messages = self.im_history(self.ims[id]['id'])
+        history = []
+        for m in messages['messages']:
+            history.append({
+                'user': self.ims[m['user']]['username'],
+                'text': m['text']
+            })
+        return history
