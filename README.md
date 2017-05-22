@@ -22,17 +22,17 @@ can get at: https://api.slack.com/tokens
 
 Then clone this repo, `cd` and get a python environment setup:
 
-$ git clone https://github.com/mathiasbc/slacky
-$ cd slacky
-$ python install -r requirements.txt
+    $ git clone https://github.com/mathiasbc/slacky
+    $ cd slacky`
+    $ python install -r requirements.txt
 
 Then you need to set the Slack API Token in the Environment like:
 
-$ export SLACK_TOKEN=<my_slack_token_here>;
+    $ export SLACK_TOKEN=<my_slack_token_here>;
 
 Finally the fun:
 
-$ python slacky/skin.py
+    $ python slacky/skin.py
 
 
 Commands
