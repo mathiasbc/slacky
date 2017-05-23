@@ -25,7 +25,7 @@ can get at: https://api.slack.com/tokens
 Then clone this repo, `cd` and get a python environment setup:
 
     $ git clone https://github.com/mathiasbc/slacky
-    $ cd slacky`
+    $ cd slacky
     $ python install -r requirements.txt
 
 Then you need to set the Slack API Token in the Environment like:
@@ -43,8 +43,8 @@ Commands
 The idea is for Slacky to be as intuitive as the Slack original
 client, but we are far from that, for the moment.
 
-Up/Down arrows: navigate contacts section.
-Right arrow: Access a chat, load messages from it
-Enter: Send the message typed in the textarea below.
+    Up/Down arrows: navigate contacts section.
+    Right arrow: Access a chat, load messages from it
+    Enter: Send the message typed in the textarea below.
 
 
