@@ -11,12 +11,7 @@ Chat = namedtuple('Contact', 'name id')
 
 class Slack(object):
 
-    def __init__(self):
-        token = os.environ.get('SLACK_TOKEN')
-        if not token:
-            print('Need to define ENV variable "SLACK_TOKEN"')
-            sys.exit(-1)
-
+    def __init__(self, token):
         self.sc = SlackClient(token)
         self.contacts = []
         self.channels = []
