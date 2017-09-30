@@ -1,10 +1,25 @@
 #!/usr/bin/env python
+"""
+    $ SLACK_TOKEN=<my_slack_token_here> python slacky/skin.py
+or
+    $ python slacky/skin.py [ -c CONFIG_FILE ]
+
+Instructions:
+    Up/Down arrows: navigate contacts section.
+    Right arrow: Access a chat, load messages from it
+    Enter: Send the message typed in the textarea below.
+"""
+from __future__ import print_function
+
+import argparse
 import curses
 import curses.textpad
 import os
+import sys
 import locale
 
 from slack import Slack
+from config import read_config
 
 
 locale.setlocale(locale.LC_ALL, "")
@@ -34,10 +49,10 @@ class Skin(object):
     # proportion of textarea vertically to the chat panel
     text_area_proportion = 0.20
 
-    def __init__(self):
+    def __init__(self, token):
         self.stdscr = None
         # instantiate a Slack client
-        self.slack_client = Slack()
+        self.slack_client = Slack(token)
         self.slack_client.setup()
         self.showing = 0
         self.selection = 0
@@ -296,5 +311,21 @@ class Skin(object):
 
 # This method is callable for testing porpuses only
 if __name__ == "__main__":
-    slacky = Skin()
+    parser = argparse.ArgumentParser(
+        usage=__doc__,
+        formatter_class=argparse.RawTextHelpFormatter)
+    parser.add_argument(
+        "-c", dest="config_file", help="path to the config file")
+    args = parser.parse_args()
+
+    if args.config_file:
+        config = read_config(args.config_file)
+        token = config.token
+    elif 'SLACK_TOKEN' in os.environ:
+        token = os.environ.get('SLACK_TOKEN')
+    else:
+	print('Need to define ENV variable "SLACK_TOKEN"', file=sys.stderr)
+        sys.exit(1)
+
+    slacky = Skin(token)
     curses.wrapper(slacky.setup)
