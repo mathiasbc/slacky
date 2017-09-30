@@ -21,4 +21,5 @@ env/
 */__pycache__
 *.orig
 docs/_build/*
+venv
 
